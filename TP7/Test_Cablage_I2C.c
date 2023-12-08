@@ -173,59 +173,68 @@ void i2c_init()
     // ......Ecrire ici la configuration de SSPCON1 (param�trage statique des communications)
 	// .....Choisir ici le taux de transfert
 	//......Configuration de SSPSTAT (param�tres g�n�raux des �tats)
-	SSPSTATbits.CKE = 0;
-	SSPADD = 19;
-	SSPCON1 = 0b00101000;
-	SSPSTATbits.SMP = 1;
-	SSPSTATbits.CKE = 1;
+
+	SSPSTATbits.CKE = 0; 	// Désactive le bus
+	SSPADD = 19; 			// 100kHz
+	SSPCON1 = 0b00101000;	
+	// Du bits le plus faible au plus fort :
+	// Des bits 0 à 3 : SSPM3:SSPM0 : 1000 Mode maitre I2C, clock = FOSC/(4 * (SSPADD + 1))
+	// 0010 -> x / Reception normale / RC3 et RC4 configurés en SCL et SDA I2C / X
+	SSPSTATbits.SMP = 1; // Controle du slew rate -> 1 = désactivé (Standard Speed mode)
+	SSPSTATbits.CKE = 1; // Active le bus
 }
 
 void i2c_idle()
 {
     // attendre que le module I2C soit inactif
-	while (SSPSTATbits.R_W || SSPCON2bits.SEN || SSPCON2bits.RSEN || SSPCON2bits.PEN || SSPCON2bits.ACKEN || SSPCON1bits.SSPM3);
+	while (SSPSTATbits.R_W || SSPCON2bits.SEN || SSPCON2bits.RSEN || SSPCON2bits.PEN || SSPCON2bits.ACKEN);
+	// SSPSTATbits.R_W : 1 = lecture en cours, 0 = écriture en cours
+	// SSPCON2bits.SEN : 1 = start en cours
+	// SSPCON2bits.RSEN : 1 = restart en cours
+	// SSPCON2bits.PEN : 1 = stop en cours
+	// SSPCON2bits.ACKEN : 1 = acquittement en cours
 }
 
 void i2c_start()
 {
 	// Fonction pour demander au controleur I2C de g�n�rer le bit de start
-	SSPCON2bits.SEN = 1;
-	while (SSPCON2bits.SEN);
+	SSPCON2bits.SEN = 1; // SEN = 1 -> Commence une séquence de start
+	while (SSPCON2bits.SEN); // Attend que le bit SEN soit remis à 0
 }
 
 void i2c_restart()
 {
  	// Fonction pour demander au controleur I2C de g�n�rer le bit de restart	
-	SSPCON2bits.RSEN = 1;
-	while (SSPCON2bits.RSEN);
+	SSPCON2bits.RSEN = 1;	// RSEN = 1 -> Commence une séquence de restart
+	while (SSPCON2bits.RSEN); // Attend que le bit RSEN soit remis à 0
 }
 
 void i2c_stop()
 {
  	// Fonction pour demander au controleur I2C de g�n�rer le bit de stop
-	SSPCON2bits.PEN = 1;
-	while (SSPCON2bits.PEN);
+	SSPCON2bits.PEN = 1; // PEN = 1 -> Commence une séquence de stop
+	while (SSPCON2bits.PEN); // Attend que le bit PEN soit remis à 0
 }
 
 void i2c_write(unsigned char data)
 {
   	// Fonction pour �crire l'octet data sur la ligne SDA et g�rer l'acquittement du r�cepteur
 	i2c_idle();
-	SSPBUF = data;
-	while (SSPSTATbits.R_W);
-	while (SSPCON2bits.ACKSTAT);
+	SSPBUF = data; // Ecriture de l'octet data dans le buffer
+	while (SSPSTATbits.R_W); // Attend que le bit R/W soit remis à 0
+	while (SSPCON2bits.ACKSTAT); // Attend que le bit ACKSTAT soit remis à 0
 }
 
 unsigned char i2c_read(unsigned char x) 
 {
 	// Fonction pour lire un octet sur la ligne SDA et g�rer l'acquittement du PIC
    i2c_idle();
-   SSPCON2bits.RCEN = 1;
-   while (SSPCON2bits.RCEN);
-   SSPCON2bits.ACKEN = x;
-   SSPCON2bits.ACKEN = 1;
-   while (SSPCON2bits.ACKEN);
-   return SSPBUF;
+   SSPCON2bits.RCEN = 1; 		// RCEN = 1 -> Commence une séquence de lecture
+   while (SSPCON2bits.RCEN); 	// Attend que le bit RCEN soit remis à 0
+   SSPCON2bits.ACKEN = x;		// ACKEN = 1 -> Envoie un acquittement
+   SSPCON2bits.ACKEN = 1;		
+   while (SSPCON2bits.ACKEN);	// Attend que le bit ACKEN soit remis à 0
+   return SSPBUF;				
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
